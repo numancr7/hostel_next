@@ -1,36 +1,134 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Empower Safety Network
 
-## Getting Started
+A Next.js application for personal safety with MongoDB backend integration.
 
-First, run the development server:
+## Features
+- User registration and authentication
+- Emergency contact management
+- Safety resources and self-defense tips
+- SOS functionality
+- Modern UI with Tailwind CSS and shadcn/ui
 
+## Tech Stack
+- **Frontend:** Next.js 14 with App Router, TypeScript, Tailwind CSS
+- **Backend:** Next.js API Routes
+- **Database:** MongoDB with Mongoose
+- **Authentication:** bcryptjs for password hashing
+- **UI Components:** shadcn/ui
+
+## Prerequisites
+- Node.js 18+
+- MongoDB (local or MongoDB Atlas)
+- npm or yarn
+
+## Setup Instructions
+
+### 1. Clone and Install Dependencies
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd empower-safety-network
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Environment Configuration
+Create a `.env.local` file in the root directory:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+# MongoDB Connection String
+MONGODB_URI=mongodb://localhost:27017/empower-safety
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# For MongoDB Atlas, use format like:
+# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/empower-safety?retryWrites=true&w=majority
+```
 
-## Learn More
+### 3. Database Setup
+**Option A: Local MongoDB**
+- Install MongoDB locally
+- Start MongoDB service
+- The database will be created automatically when you first register a user
 
-To learn more about Next.js, take a look at the following resources:
+**Option B: MongoDB Atlas**
+- Create a MongoDB Atlas account
+- Create a new cluster
+- Get your connection string
+- Replace the `MONGODB_URI` in `.env.local`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 4. Run the Application
+```bash
+# Development
+npm run dev
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Production build
+npm run build
+npm start
+```
+The application will be available at [http://localhost:3000](http://localhost:3000)
 
-## Deploy on Vercel
+## API Endpoints
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Authentication
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+#### Request/Response Examples
+
+**Register User**
+```http
+POST /api/auth/register
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phoneNumber": "123-456-7890",
+  "password": "password123"
+}
+```
+
+**Login User**
+```http
+POST /api/auth/login
+{
+  "email": "john@example.com",
+  "password": "password123"
+}
+```
+
+## Project Structure
+```
+src/
+├── app/
+│   ├── api/auth/
+│   │   ├── register/route.ts    # Registration API
+│   │   └── login/route.ts       # Login API
+│   ├── login/page.tsx           # Login page
+│   └── register/page.tsx        # Registration page
+├── lib/
+│   ├── mongodb.ts               # Database connection
+│   └── models/User.ts           # User model
+└── contexts/AuthContext.tsx     # Updated auth context
+```
+
+## Development
+
+### Adding New API Routes
+- Create a new file in `src/app/api/`
+- Export HTTP methods (`GET`, `POST`, `PUT`, `DELETE`)
+- Use the MongoDB connection utility
+
+### Database Models
+- All models are in `src/lib/models/` and use Mongoose schemas.
+
+## Security Features
+- Password hashing with bcryptjs
+- Input validation and sanitization
+- CORS protection
+- Environment variable protection
+
+## Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+This project is licensed under the MIT License.
