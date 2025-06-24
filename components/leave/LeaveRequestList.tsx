@@ -1,6 +1,6 @@
+"use client";
 
 import React, { useState } from 'react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { LeaveRequest } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,34 +8,36 @@ import { Badge } from '@/components/ui/badge';
 import { Check, X, Clock } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
-export const LeaveRequestList: React.FC = () => {
-  const [leaveRequests, setLeaveRequests] = useLocalStorage<LeaveRequest[]>('leaveRequests', []);
+// LeaveRequestList now receives leaveRequests as a prop from the parent
+export const LeaveRequestList: React.FC<{ leaveRequests: LeaveRequest[] }> = ({ leaveRequests }) => {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
+  // All update logic is now local (for UI only)
+  const [localLeaveRequests, setLocalLeaveRequests] = useState(leaveRequests);
+
   const updateRequestStatus = (requestId: string, status: 'approved' | 'rejected') => {
-    const updatedRequests = leaveRequests.map(request =>
+    const updatedRequests = localLeaveRequests.map(request =>
       request.id === requestId
         ? { ...request, status, reviewedAt: new Date().toISOString() }
         : request
     );
-    setLeaveRequests(updatedRequests);
-    
+    setLocalLeaveRequests(updatedRequests);
     toast({
       title: `Request ${status}`,
       description: `Leave request has been ${status}`,
     });
   };
 
-  const filteredRequests = leaveRequests.filter(request => {
+  const filteredRequests = localLeaveRequests.filter(request => {
     if (filter === 'all') return true;
     return request.status === filter;
   });
 
   const getStatusStats = () => {
     return {
-      pending: leaveRequests.filter(r => r.status === 'pending').length,
-      approved: leaveRequests.filter(r => r.status === 'approved').length,
-      rejected: leaveRequests.filter(r => r.status === 'rejected').length,
+      pending: localLeaveRequests.filter(r => r.status === 'pending').length,
+      approved: localLeaveRequests.filter(r => r.status === 'approved').length,
+      rejected: localLeaveRequests.filter(r => r.status === 'rejected').length,
     };
   };
 
@@ -47,7 +49,6 @@ export const LeaveRequestList: React.FC = () => {
         <h2 className="text-2xl font-bold mb-2">Leave Request Management</h2>
         <p className="text-muted-foreground">Review and manage student leave applications</p>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
           <CardContent className="p-4">
@@ -60,7 +61,6 @@ export const LeaveRequestList: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -72,7 +72,6 @@ export const LeaveRequestList: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -85,7 +84,6 @@ export const LeaveRequestList: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-
       <div className="flex space-x-2 mb-4">
         {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => (
           <Button
@@ -98,7 +96,6 @@ export const LeaveRequestList: React.FC = () => {
           </Button>
         ))}
       </div>
-
       <div className="space-y-4">
         {filteredRequests.map((request) => (
           <Card key={request.id}>
@@ -127,14 +124,12 @@ export const LeaveRequestList: React.FC = () => {
                   <span className="text-sm font-medium">Reason:</span>
                   <p className="text-sm text-muted-foreground mt-1">{request.reason}</p>
                 </div>
-                
                 <div className="flex justify-between items-center text-xs text-muted-foreground">
                   <span>Submitted: {new Date(request.submittedAt).toLocaleString()}</span>
                   {request.reviewedAt && (
                     <span>Reviewed: {new Date(request.reviewedAt).toLocaleString()}</span>
                   )}
                 </div>
-
                 {request.status === 'pending' && (
                   <div className="flex space-x-2 pt-2">
                     <Button
@@ -160,7 +155,6 @@ export const LeaveRequestList: React.FC = () => {
           </Card>
         ))}
       </div>
-
       {filteredRequests.length === 0 && (
         <div className="text-center py-8">
           <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />

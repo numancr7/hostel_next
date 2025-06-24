@@ -2,23 +2,32 @@ import { connectToDatabase } from "@/lib/db";
 import User from "@/models/User";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { handleApiError } from '@/lib/utils';
+import { z } from "zod";
 
-export async function POST(request: NextRequest) {
+// Zod schema for user login
+const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    await connectToDatabase();
+    const body = await req.json();
 
-    // 1. Validate input
-    if (!email || !password) {
+    // Validate the request body using the Zod schema
+    const validationResult = loginSchema.safeParse(body);
+
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { error: validationResult.error.errors[0].message },
         { status: 400 }
       );
     }
 
-    // 2. Connect to DB
-    await connectToDatabase();
+    const { email, password } = validationResult.data;
 
-    // 3. Check user existence
     const user = await User.findOne({ email });
     if (!user) {
       return NextResponse.json(
@@ -27,33 +36,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Compare passwords
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
       );
     }
 
-    // 5. Successful login — return limited user info
-    return NextResponse.json(
-      {
-        message: "Login successful",
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
-      },
-      { status: 200 }
-    );
-  } catch (err: any) {
-    console.error("Login error:", err.message || err);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    // Do not return password to frontend
+    const userWithoutPassword = user.toObject();
+    delete userWithoutPassword.password;
+
+    return NextResponse.json(userWithoutPassword, { status: 200 });
+  } catch (error) {
+    const { status, body } = handleApiError(error, 'User Login');
+    return NextResponse.json(body, { status });
   }
 }

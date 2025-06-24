@@ -1,43 +1,98 @@
 import { NextRequest, NextResponse } from 'next/server';
 import LeaveRequest from '@/models/LeaveRequest';
 import { connectToDatabase } from '@/lib/db';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+import type { LeaveRequest as LeaveRequestType } from '@/types';
+import { z } from "zod";
 
-// GET single leave request
+// Zod schema for updating a leave request
+const updateLeaveRequestSchema = z.object({
+  status: z.enum(["approved", "rejected", "pending"], "Invalid status").optional(),
+  reason: z.string().min(10, "Reason must be at least 10 characters long").optional(),
+  fromDate: z.string().datetime("Invalid 'fromDate' format").optional(),
+  toDate: z.string().datetime("Invalid 'toDate' format").optional(),
+}).refine((data) => {
+  if (data.fromDate && data.toDate) {
+    return new Date(data.fromDate) <= new Date(data.toDate);
+  }
+  return true; // No date validation if one or both are missing
+}, {
+  message: "'fromDate' cannot be after 'toDate'",
+  path: ["fromDate", "toDate"], // Path of error
+});
+
+// GET single leave request (admin or owner)
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  await connectToDatabase();
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
-    await connectToDatabase();
     const leaveRequest = await LeaveRequest.findById(params.id).populate('studentId');
     if (!leaveRequest) return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
-    return NextResponse.json(leaveRequest);
+    if (session.user.role !== 'admin' && leaveRequest.studentId.toString() !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    return NextResponse.json(leaveRequest, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch leave request' }, { status: 500 });
   }
 }
 
-// PUT update leave request (only status and reason are updatable)
+// PUT update leave request (admin only, status and reason)
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  await connectToDatabase();
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (session.user.role !== 'admin') {
+    return NextResponse.json({ error: 'Only admins can update leave requests' }, { status: 403 });
+  }
   try {
-    await connectToDatabase();
-    const data = await req.json();
-    // Only allow updating status and reason
-    const updateFields: any = {};
-    if (data.status) updateFields.status = data.status;
-    if (data.reason) updateFields.reason = data.reason;
+    const body = await req.json();
+
+    // Validate the request body using the Zod schema
+    const validationResult = updateLeaveRequestSchema.safeParse(body);
+
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: validationResult.error.errors[0].message },
+        { status: 400 }
+      );
+    }
+
+    const updateFields = validationResult.data;
+
+    if (updateFields.status) {
+      updateFields.reviewedAt = new Date().toISOString();
+    }
+
     const leaveRequest = await LeaveRequest.findByIdAndUpdate(params.id, updateFields, { new: true });
     if (!leaveRequest) return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
-    return NextResponse.json(leaveRequest);
+    return NextResponse.json(leaveRequest, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update leave request' }, { status: 500 });
   }
 }
 
-// DELETE leave request
+// DELETE leave request (admin or owner)
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  await connectToDatabase();
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
-    await connectToDatabase();
-    const leaveRequest = await LeaveRequest.findByIdAndDelete(params.id);
+    const leaveRequest = await LeaveRequest.findById(params.id);
     if (!leaveRequest) return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
-    return NextResponse.json({ message: 'Leave request deleted' });
+    if (session.user.role !== 'admin' && leaveRequest.studentId.toString() !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    await LeaveRequest.findByIdAndDelete(params.id);
+    return NextResponse.json({ message: 'Leave request deleted' }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to delete leave request' }, { status: 500 });
   }

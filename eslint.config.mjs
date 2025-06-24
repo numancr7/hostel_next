@@ -27,6 +27,11 @@ const eslintConfig = [
       ...reactHooksPlugin.configs.recommended.rules,
       ...nextPlugin.configs.recommended.rules,
       ...nextPlugin.configs["core-web-vitals"].rules,
+      "react/no-deprecated": "warn",
+      "@typescript-eslint/no-floating-promises": "error",
+      "no-async-promise-executor": "error",
+      "react/prop-types": "error",
+      "react/require-default-props": "error",
     },
   },
 ];

@@ -3,52 +3,79 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react'; // Use NextAuth signIn
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/components/ui/use-toast";
+import { z } from "zod";
+import type { User } from "@/types";
+
+const SignupSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  email: z.string().email("Invalid email"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  role: z.enum(["admin", "student"]),
+});
+
+type SignupForm = z.infer<typeof SignupSchema>;
 
 export default function Signup() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [role, setRole] = useState<'admin' | 'student'>('student');
-  const [isLoading, setIsLoading] = useState(false); // Local loading state
+  const [form, setForm] = useState<SignupForm>({
+    name: "",
+    email: "",
+    password: "",
+    role: "student",
+  });
+  const [errors, setErrors] = useState<Partial<Record<keyof SignupForm, string>>>({});
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  // Use register API, then auto-login with NextAuth
+  const handleChange = (field: keyof SignupForm, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const result = SignupSchema.safeParse(form);
+    if (!result.success) {
+      const fieldErrors: Partial<Record<keyof SignupForm, string>> = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) fieldErrors[err.path[0] as keyof SignupForm] = err.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
     setIsLoading(true);
-    // Call register API
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name, role }),
+      body: JSON.stringify(form),
     });
     const data = await res.json();
     if (res.ok) {
-      // Auto-login after successful signup
-      const loginRes = await signIn('credentials', {
-        redirect: false,
-        email,
-        password,
+      // Attempt to log in directly after successful registration
+      const loginRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email, password: form.password }),
       });
+      const loginData = await loginRes.json();
       setIsLoading(false);
-      if (loginRes?.ok) {
+      if (loginRes.ok) {
         toast({
           title: "Account created",
           description: "Your account has been created successfully!",
         });
-        router.push('/dashboard');
+        router.push('/login');
       } else {
         toast({
-          title: "Signup failed",
-          description: loginRes?.error || "Could not log in after signup",
+          title: "Signup successful, but login failed",
+          description: loginData.error || "Could not log in after signup",
           variant: "destructive",
         });
       }
@@ -78,37 +105,40 @@ export default function Signup() {
               <Input
                 id="name"
                 type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={form.name}
+                onChange={(e) => handleChange("name", e.target.value)}
                 required
                 placeholder="Enter your full name"
               />
+              {errors.name && <div className="text-red-500 text-xs">{errors.name}</div>}
             </div>
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={form.email}
+                onChange={(e) => handleChange("email", e.target.value)}
                 required
                 placeholder="Enter your email"
               />
+              {errors.email && <div className="text-red-500 text-xs">{errors.email}</div>}
             </div>
             <div>
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={form.password}
+                onChange={(e) => handleChange("password", e.target.value)}
                 required
                 placeholder="Enter your password"
               />
+              {errors.password && <div className="text-red-500 text-xs">{errors.password}</div>}
             </div>
             <div>
               <Label htmlFor="role">Role</Label>
-              <Select value={role} onValueChange={(value: 'admin' | 'student') => setRole(value)}>
+              <Select value={form.role} onValueChange={(value: 'admin' | 'student') => handleChange("role", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select your role" />
                 </SelectTrigger>
@@ -117,6 +147,7 @@ export default function Signup() {
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
+              {errors.role && <div className="text-red-500 text-xs">{errors.role}</div>}
             </div>
             <Button
               type="submit"

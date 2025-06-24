@@ -3,12 +3,12 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/components/ui/use-toast";
+import { signIn } from "next-auth/react";
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -17,28 +17,37 @@ export default function Login() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Handle login with NextAuth credentials provider
+  // Handle login with custom API route
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // Use NextAuth signIn for credentials
-      const res = await signIn('credentials', {
-        redirect: false,
-        email,
-        password,
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
+      const data = await res.json();
       setIsLoading(false);
-      if (res?.ok) {
+
+      if (res.ok) {
+        // Trigger next-auth client-side session update
+        await signIn('credentials', { 
+          email,
+          password,
+          redirect: false, // Prevent signIn from redirecting itself
+        });
+
+        const destination = data.role === "admin" ? "/admin" : "/student";
+        router.push(destination);
         toast({
           title: "Login successful",
           description: "Welcome back!",
         });
-        router.push('/dashboard');
       } else {
         toast({
           title: "Login failed",
-          description: (res && typeof res.error === 'string') ? res.error : "Invalid email or password",
+          description: data.error || "Invalid email or password",
           variant: "destructive",
         });
       }
@@ -95,7 +104,7 @@ export default function Login() {
           </form>
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link href="/signup" className="text-primary hover:underline">
                 Sign up
               </Link>

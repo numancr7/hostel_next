@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+"use client";
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,48 +8,93 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, UserPlus, Home } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
-export const StudentList: React.FC = () => {
-  // Placeholders for users and rooms
-  const [users, setUsers] = useState<any[]>([]);
-  const [rooms, setRooms] = useState<any[]>([]);
+// StudentList now receives users and rooms as props from the parent
+export const StudentList: React.FC<{ users: any[]; rooms: any[] }> = ({
+  users,
+  rooms,
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [localRooms, setLocalRooms] = useState(rooms); // Initialize with props
+  const router = useRouter();
+
+  useEffect(() => {
+    setLocalRooms(rooms);
+  }, [rooms]);
 
   const students = users.filter((user: any) => user.role === 'student');
-  const filteredStudents = students.filter((student: any) => 
-    student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStudents = students.filter(
+    (student: any) =>
+      student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const assignRoom = (studentId: string, roomId: string) => {
-    const updatedRooms = rooms.map((room: any) => {
-      if (room.id === roomId) {
-        if (room.occupants.length >= room.capacity) {
-          toast({
-            title: "Room full",
-            description: "This room has reached its capacity",
-            variant: "destructive",
-          });
-          return room;
-        }
-        return { ...room, occupants: [...room.occupants, studentId] };
-      }
-      // Remove student from other rooms
-      return { ...room, occupants: room.occupants.filter((id: string) => id !== studentId) };
-    });
+  const assignRoom = async (studentId: string, roomId: string) => {
+    const studentCurrentRoom = getStudentRoom(studentId);
+    let updatedRoomsData = [...localRooms];
 
-    setRooms(updatedRooms);
-    toast({
-      title: "Room assigned",
-      description: "Student has been assigned to the room",
-    });
+    // Remove student from their current room if they are in one
+    if (studentCurrentRoom) {
+      updatedRoomsData = updatedRoomsData.map((room: any) =>
+        room.id === studentCurrentRoom.id
+          ? { ...room, occupants: room.occupants.filter((id: string) => id !== studentId) }
+          : room
+      );
+    }
+
+    // Add student to the new room
+    const targetRoom = updatedRoomsData.find((room: any) => room.id === roomId);
+    if (targetRoom) {
+      if (targetRoom.occupants.length >= targetRoom.capacity) {
+        toast({
+          title: "Room full",
+          description: "This room has reached its capacity",
+          variant: "destructive",
+        });
+        return; // Exit if room is full
+      }
+      targetRoom.occupants.push(studentId);
+    }
+
+    try {
+      // Update the old room (if any)
+      if (studentCurrentRoom) {
+        await fetch(`/api/rooms/${studentCurrentRoom.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ occupants: studentCurrentRoom.occupants.filter((id: string) => id !== studentId) }),
+        });
+      }
+
+      // Update the new room
+      await fetch(`/api/rooms/${roomId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ occupants: targetRoom.occupants }),
+      });
+
+      setLocalRooms(updatedRoomsData);
+      toast({
+        title: "Room assigned",
+        description: "Student has been assigned to the room",
+      });
+      router.refresh(); // Refresh data after successful assignment
+    } catch (error) {
+      console.error("Failed to assign room:", error);
+      toast({
+        title: "Error assigning room",
+        description: "Could not assign student to the room. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStudentRoom = (studentId: string) => {
-    return rooms.find((room: any) => room.occupants.includes(studentId));
+    return localRooms.find((room: any) => room.occupants.includes(studentId));
   };
 
-  const availableRooms = rooms.filter(room => room.occupants.length < room.capacity);
+  const availableRooms = localRooms.filter(room => room.occupants.length < room.capacity);
 
   return (
     <div className="space-y-6">
@@ -57,7 +104,6 @@ export const StudentList: React.FC = () => {
           <p className="text-muted-foreground">Manage student records and room assignments</p>
         </div>
       </div>
-
       <div className="flex items-center space-x-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -69,7 +115,6 @@ export const StudentList: React.FC = () => {
           />
         </div>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredStudents.map((student) => {
           const room = getStudentRoom(student.id);
@@ -92,38 +137,36 @@ export const StudentList: React.FC = () => {
                       <Badge variant="outline">Not Assigned</Badge>
                     )}
                   </div>
-                  
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Joined:</span>
                     <span className="text-sm text-muted-foreground">
                       {new Date(student.createdAt).toLocaleDateString()}
                     </span>
                   </div>
-
-                  {!room && availableRooms.length > 0 && (
-                    <div className="space-y-2">
-                      <span className="text-sm font-medium">Assign Room:</span>
-                      <Select onValueChange={(roomId) => assignRoom(student.id, roomId)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a room" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableRooms.map((room) => (
-                            <SelectItem key={room.id} value={room.id}>
-                              {room.roomNumber} ({room.type}) - {room.occupants.length}/{room.capacity}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium">Assign Room:</span>
+                    <Select value={room?.id || ''} onValueChange={(roomId) => assignRoom(student.id, roomId)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a room" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableRooms.map((room) => (
+                          <SelectItem key={room.id} value={room.id}>
+                            {room.roomNumber} ({room.type}) - {room.occupants.length}/{room.capacity}
+                          </SelectItem>
+                        ))}
+                        {room && <SelectItem key={room.id} value={room.id} disabled>
+                          {room.roomNumber} (Current) - {room.occupants.length}/{room.capacity}
+                        </SelectItem>}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           );
         })}
       </div>
-
       {filteredStudents.length === 0 && (
         <div className="text-center py-8">
           <UserPlus className="h-12 w-12 text-gray-400 mx-auto mb-4" />

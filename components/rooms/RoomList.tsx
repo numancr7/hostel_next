@@ -1,17 +1,25 @@
-
-import React, { useState } from 'react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import React, { useState, useEffect } from 'react';
 import { Room, User } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Home, Users, Plus } from 'lucide-react';
+import { Home, Users, Plus, Trash2 } from 'lucide-react';
 import { AddRoomDialog } from './AddRoomDialog';
+import { toast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
-export const RoomList: React.FC = () => {
-  const [rooms, setRooms] = useLocalStorage<Room[]>('rooms', []);
-  const [users] = useLocalStorage<User[]>('users', []);
-  const [showAddRoom, setShowAddRoom] = useState(false);
+// RoomList now receives rooms and users as props from the parent
+export const RoomList: React.FC<{ rooms: Room[]; users: User[] }> = ({
+  rooms,
+  users,
+}) => {
+  const [isAddRoomDialogOpen, setIsAddRoomDialogOpen] = useState(false);
+  const [localRooms, setLocalRooms] = useState(rooms);
+  const router = useRouter();
+
+  useEffect(() => {
+    setLocalRooms(rooms);
+  }, [rooms]);
 
   const students = users.filter(user => user.role === 'student');
 
@@ -21,15 +29,52 @@ export const RoomList: React.FC = () => {
   };
 
   const getRoomStats = () => {
-    const totalRooms = rooms.length;
-    const occupiedRooms = rooms.filter(room => room.occupants.length > 0).length;
-    const totalCapacity = rooms.reduce((sum, room) => sum + room.capacity, 0);
-    const occupiedBeds = rooms.reduce((sum, room) => sum + room.occupants.length, 0);
-
+    const totalRooms = localRooms.length;
+    const occupiedRooms = localRooms.filter(room => room.occupants.length > 0).length;
+    const totalCapacity = localRooms.reduce((sum, room) => sum + room.capacity, 0);
+    const occupiedBeds = localRooms.reduce((sum, room) => sum + room.occupants.length, 0);
     return { totalRooms, occupiedRooms, totalCapacity, occupiedBeds };
   };
 
   const stats = getRoomStats();
+
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!window.confirm("Are you sure you want to delete this room?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/rooms/${roomId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        toast({
+          title: "Room deleted",
+          description: "The room has been successfully deleted.",
+        });
+        router.refresh(); // Refresh data after successful deletion
+      } else {
+        const errorData = await res.json();
+        toast({
+          title: "Error deleting room",
+          description: errorData.error || "Failed to delete room.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to delete room:", error);
+      toast({
+        title: "Error deleting room",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRoomAdded = () => {
+    router.refresh(); // Refresh data after successful addition
+  };
 
   return (
     <div className="space-y-6">
@@ -38,12 +83,10 @@ export const RoomList: React.FC = () => {
           <h2 className="text-2xl font-bold">Room Management</h2>
           <p className="text-muted-foreground">Manage room inventory and allocations</p>
         </div>
-        <Button onClick={() => setShowAddRoom(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Room
+        <Button onClick={() => setIsAddRoomDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" /> Add Room
         </Button>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card>
           <CardContent className="p-4">
@@ -56,7 +99,6 @@ export const RoomList: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -68,7 +110,6 @@ export const RoomList: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -80,7 +121,6 @@ export const RoomList: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -93,9 +133,8 @@ export const RoomList: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {rooms.map((room) => (
+        {localRooms.map((room) => (
           <Card key={room.id}>
             <CardHeader>
               <div className="flex justify-between items-start">
@@ -116,7 +155,6 @@ export const RoomList: React.FC = () => {
                     {room.occupants.length === room.capacity ? "Full" : "Available"}
                   </Badge>
                 </div>
-
                 {room.occupants.length > 0 && (
                   <div>
                     <span className="text-sm font-medium">Occupants:</span>
@@ -129,31 +167,27 @@ export const RoomList: React.FC = () => {
                     </div>
                   </div>
                 )}
+                <div className="flex justify-end">
+                  <Button variant="destructive" size="sm" onClick={() => handleDeleteRoom(room.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
-
-      {rooms.length === 0 && (
+      {localRooms.length === 0 && (
         <div className="text-center py-8">
           <Home className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No rooms available</h3>
           <p className="text-gray-600 mb-4">Start by adding your first room to the system</p>
-          <Button onClick={() => setShowAddRoom(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Room
-          </Button>
         </div>
       )}
-
       <AddRoomDialog
-        open={showAddRoom}
-        onOpenChange={setShowAddRoom}
-        onAddRoom={(room) => {
-          setRooms([...rooms, { ...room, id: Date.now().toString(), occupants: [], isAvailable: true }]);
-          setShowAddRoom(false);
-        }}
+        open={isAddRoomDialogOpen}
+        onOpenChange={setIsAddRoomDialogOpen}
+        onRoomAdded={handleRoomAdded}
       />
     </div>
   );

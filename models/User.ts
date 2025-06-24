@@ -7,6 +7,9 @@ export interface IUser {
   emailVerified?: Date | null;
   password: string;
   role: 'admin' | 'student';
+  roomId?: string;
+  phone?: string;
+  address?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -22,6 +25,9 @@ const userSchema = new Schema<IUser>(
       enum: ['admin', 'student'],
       default: 'student',
     },
+    roomId: { type: String, default: null },
+    phone: { type: String, default: null },
+    address: { type: String, default: null },
   },
   { timestamps: true }
 );

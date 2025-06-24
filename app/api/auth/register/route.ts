@@ -1,61 +1,49 @@
 import { connectToDatabase } from "@/lib/db";
 import User from "@/models/User";
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { handleApiError } from "@/lib/utils";
+import { z } from "zod";
 
-export async function POST(request: NextRequest) {
+// Zod schema for user registration
+const registerSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  role: z.enum(["student", "admin"], "Invalid role"),
+});
+
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
-    const { email, password, name, role } = body;
+    await connectToDatabase();
+    const body = await req.json();
 
-    // 1. Basic validation
-    if (!email || !password || !name || !role) {
+    // Validate the request body using the Zod schema
+    const validationResult = registerSchema.safeParse(body);
+
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: "All fields (email, password, name, role) are required" },
+        { error: validationResult.error.errors[0].message },
         { status: 400 }
       );
     }
 
-    // 2. Connect to DB
-    await connectToDatabase();
+    const { name, email, password, role } = validationResult.data;
 
-    // 3. Check if user exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return NextResponse.json(
-        { error: "User already registered with this email" },
-        { status: 409 } // Conflict
-      );
+      return NextResponse.json({ error: 'User with this email already exists' }, { status: 409 });
     }
 
-    // 4. Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Remove explicit hashing here, let the Mongoose pre-save hook handle it
+    const newUser = await User.create({ name, email, password, role });
 
-    // 5. Create new user
-    const newUser = await User.create({
-      email,
-      password: hashedPassword,
-      name,
-      role,
-    });
+    // Do not return password to frontend
+    const userWithoutPassword = newUser.toObject();
+    delete userWithoutPassword.password;
 
-    return NextResponse.json(
-      {
-        message: "User registered successfully",
-        user: {
-          id: newUser._id,
-          email: newUser.email,
-          name: newUser.name,
-          role: newUser.role,
-        },
-      },
-      { status: 201 }
-    );
-  } catch (err: any) {
-    console.error("Registration error:", err.message || err);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    return NextResponse.json(userWithoutPassword, { status: 201 });
+  } catch (error) {
+    const { status, body } = handleApiError(error, 'User Registration');
+    return NextResponse.json(body, { status });
   }
 }

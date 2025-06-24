@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -10,41 +9,69 @@ import { toast } from '@/hooks/use-toast';
 interface AddRoomDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddRoom: (room: { roomNumber: string; capacity: number; type: 'AC' | 'Non-AC' }) => void;
+  onRoomAdded: () => void; // Callback to notify parent about successful addition
 }
 
-export const AddRoomDialog: React.FC<AddRoomDialogProps> = ({ open, onOpenChange, onAddRoom }) => {
+export const AddRoomDialog: React.FC<AddRoomDialogProps> = ({ open, onOpenChange, onRoomAdded }) => {
   const [roomNumber, setRoomNumber] = useState('');
   const [capacity, setCapacity] = useState('2');
   const [type, setType] = useState<'AC' | 'Non-AC'>('Non-AC');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setIsLoading(true);
+
     if (!roomNumber.trim()) {
       toast({
         title: "Error",
         description: "Room number is required",
         variant: "destructive",
       });
+      setIsLoading(false);
       return;
     }
 
-    onAddRoom({
-      roomNumber: roomNumber.trim(),
-      capacity: parseInt(capacity),
-      type
-    });
+    try {
+      const res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomNumber: roomNumber.trim(),
+          capacity: parseInt(capacity),
+          type,
+        }),
+      });
 
-    // Reset form
-    setRoomNumber('');
-    setCapacity('2');
-    setType('Non-AC');
-
-    toast({
-      title: "Room added",
-      description: "New room has been added successfully",
-    });
+      if (res.ok) {
+        toast({
+          title: "Room added",
+          description: "New room has been added successfully",
+        });
+        onRoomAdded(); // Notify parent
+        onOpenChange(false); // Close dialog
+        // Reset form
+        setRoomNumber('');
+        setCapacity('2');
+        setType('Non-AC');
+      } else {
+        const errorData = await res.json();
+        toast({
+          title: "Error adding room",
+          description: errorData.error || "Failed to add room",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to add room:", error);
+      toast({
+        title: "Error adding room",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -66,12 +93,13 @@ export const AddRoomDialog: React.FC<AddRoomDialogProps> = ({ open, onOpenChange
               onChange={(e) => setRoomNumber(e.target.value)}
               placeholder="e.g., 101, A-201"
               required
+              disabled={isLoading}
             />
           </div>
 
           <div>
             <Label htmlFor="capacity">Capacity</Label>
-            <Select value={capacity} onValueChange={setCapacity}>
+            <Select value={capacity} onValueChange={setCapacity} disabled={isLoading}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -86,7 +114,7 @@ export const AddRoomDialog: React.FC<AddRoomDialogProps> = ({ open, onOpenChange
 
           <div>
             <Label htmlFor="type">Room Type</Label>
-            <Select value={type} onValueChange={(value: 'AC' | 'Non-AC') => setType(value)}>
+            <Select value={type} onValueChange={(value: 'AC' | 'Non-AC') => setType(value)} disabled={isLoading}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -98,10 +126,12 @@ export const AddRoomDialog: React.FC<AddRoomDialogProps> = ({ open, onOpenChange
           </div>
 
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
               Cancel
             </Button>
-            <Button type="submit">Add Room</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Adding Room..." : "Add Room"}
+            </Button>
           </div>
         </form>
       </DialogContent>

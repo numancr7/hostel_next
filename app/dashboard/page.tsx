@@ -1,27 +1,24 @@
 "use client";
 
-import React from 'react';
-import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
-import { StudentDashboard } from '@/components/dashboard/StudentDashboard';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useEffect } from "react";
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
+  const { data: session, status } = useSession();
 
-  if (status === 'loading') {
-    // Show a loading spinner while session is being fetched
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-  if (!session?.user) {
-    router.push('/login');
-    return null;
-  }
+  useEffect(() => {
+    if (status === "loading") return; // Do nothing while loading
 
-  return (session.user as any).role === 'admin' ? <AdminDashboard /> : <StudentDashboard />;
+    if (!session?.user) {
+      router.push("/login");
+    } else if (session.user.role === "admin") {
+      router.push("/admin");
+    } else if (session.user.role === "student") {
+      router.push("/student");
+    }
+  }, [session, status, router]);
+
+  return <p>Loading dashboard...</p>;
 } 
