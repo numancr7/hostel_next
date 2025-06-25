@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,29 +16,42 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
 
-  // Handle login with custom API route
+  React.useEffect(() => {
+    if (searchParams.get('verified') === 'true') {
+      toast({
+        title: "Email Verified",
+        description: "Your email has been successfully verified! You can now log in.",
+      });
+    }
+    if (searchParams.get('reset') === 'true') {
+      toast({
+        title: "Password Reset Successful",
+        description: "Your password has been reset successfully! You can now log in with your new password.",
+      });
+    }
+  }, [searchParams, toast]);
+
+  // Handle login with NextAuth signIn
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false, // Prevent signIn from redirecting itself
       });
-      const data = await res.json();
+
       setIsLoading(false);
 
-      if (res.ok) {
-        // Trigger next-auth client-side session update
-        await signIn('credentials', { 
-          email,
-          password,
-          redirect: false, // Prevent signIn from redirecting itself
-        });
+      if (result?.ok) {
+        // Fetch session explicitly to get user role
+        const sessionRes = await fetch('/api/auth/session');
+        const sessionData = await sessionRes.json();
 
-        const destination = data.role === "admin" ? "/admin" : "/student";
+        const destination = sessionData?.user?.role === "admin" ? "/admin" : "/student";
         router.push(destination);
         toast({
           title: "Login successful",
@@ -47,12 +60,13 @@ export default function Login() {
       } else {
         toast({
           title: "Login failed",
-          description: data.error || "Invalid email or password",
+          description: result?.error || "Invalid email or password", // Use error from signIn result
           variant: "destructive",
         });
       }
     } catch (error) {
       setIsLoading(false);
+      console.error("Unexpected login error:", error);
       toast({
         title: "Login failed",
         description: "An unexpected error occurred.",
@@ -93,6 +107,11 @@ export default function Login() {
                 required
                 placeholder="Enter your password"
               />
+            </div>
+            <div className="text-sm text-right">
+              <Link href="/forgot-password" className="text-primary hover:underline">
+                Forgot password?
+              </Link>
             </div>
             <Button
               type="submit"

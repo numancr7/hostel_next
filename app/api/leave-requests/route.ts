@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import type { LeaveRequest as LeaveRequestType } from '@/types';
 import { z } from "zod";
+import { handleApiError } from '@/lib/utils';
 
 // Zod schema for creating a new leave request
 const createLeaveRequestSchema = z.object({
@@ -54,17 +55,27 @@ export async function POST(req: NextRequest) {
 
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: validationResult.error.errors[0].message },
+        { errors: validationResult.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
 
     const { fromDate, toDate, reason } = validationResult.data;
 
+    // Backend validation for required fields
+    if (!reason) {
+      return NextResponse.json({ error: 'Reason is required.' }, { status: 400 });
+    }
+    if (!fromDate) {
+      return NextResponse.json({ error: 'From date is required.' }, { status: 400 });
+    }
+    if (!toDate) {
+      return NextResponse.json({ error: 'To date is required.' }, { status: 400 });
+    }
+
     // Create leave request
     const leaveRequest = await LeaveRequest.create({
       studentId: session.user.id,
-      studentName: session.user.name,
       fromDate,
       toDate,
       reason,
@@ -73,6 +84,8 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(leaveRequest, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to create leave request' }, { status: 500 });
+    console.error("Error creating leave request:", error);
+    const { status, body } = handleApiError(error, 'Create Leave Request');
+    return NextResponse.json(body, { status });
   }
 } 

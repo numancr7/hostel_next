@@ -4,10 +4,10 @@ import { connectToDatabase } from '@/lib/db';
 import type { Room as RoomType } from '@/types';
 import { handleApiError } from '@/lib/utils';
 import { z } from "zod";
+import mongoose from 'mongoose';
 
 // Zod schema for updating a room
 const updateRoomSchema = z.object({
-  roomNumber: z.any().refine(val => val === undefined, "Room number cannot be updated").optional(),
   type: z.enum(['AC', 'Non-AC'], "Invalid room type").optional(),
   capacity: z.number().int().positive("Capacity must be a positive integer").optional(),
   isAvailable: z.boolean().optional(),
@@ -30,6 +30,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 // PUT update room
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // Validate id parameter
+    if (!params.id || !mongoose.Types.ObjectId.isValid(params.id)) {
+      return NextResponse.json({ error: 'Invalid or missing room id.' }, { status: 400 });
+    }
     await connectToDatabase();
     const body = await req.json();
 

@@ -5,6 +5,7 @@ import { Users, Home, Clock, DollarSign } from 'lucide-react';
 import { StudentList } from '@/components/students/StudentList';
 import { RoomList } from '@/components/rooms/RoomList';
 import { LeaveRequestList } from '@/components/leave/LeaveRequestList';
+import { PaymentList } from '@/components/payments/PaymentList';
 
 // AdminDashboard now receives all data as props from the server
 export default function AdminDashboard({
@@ -12,11 +13,13 @@ export default function AdminDashboard({
   rooms,
   leaveRequests,
   payments,
+  refreshData,
 }: {
   users: any[];
   rooms: any[];
   leaveRequests: any[];
   payments: any[];
+  refreshData: () => void;
 }) {
   const [activeTab, setActiveTab] = React.useState('overview');
 
@@ -29,11 +32,13 @@ export default function AdminDashboard({
   const renderTabContent = () => {
     switch (activeTab) {
       case 'students':
-        return <StudentList users={users} rooms={rooms} />;
+        return <StudentList users={users} rooms={rooms} refreshData={refreshData} />;
       case 'rooms':
-        return <RoomList rooms={rooms} users={users} />;
+        return <RoomList rooms={rooms} users={users} refreshData={refreshData} />;
       case 'leave':
-        return <LeaveRequestList leaveRequests={leaveRequests} />;
+        return <LeaveRequestList leaveRequests={leaveRequests} refreshData={refreshData} />;
+      case 'payments':
+        return <PaymentList payments={payments} users={users} refreshData={refreshData} />;
       default:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -93,7 +98,8 @@ export default function AdminDashboard({
             { id: 'overview', label: 'Overview' },
             { id: 'students', label: 'Students' },
             { id: 'rooms', label: 'Rooms' },
-            { id: 'leave', label: 'Leave Requests' }
+            { id: 'leave', label: 'Leave Requests' },
+            { id: 'payments', label: 'Payments' }
           ].map((tab) => (
             <Button
               key={tab.id}

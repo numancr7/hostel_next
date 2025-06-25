@@ -24,7 +24,13 @@ export async function GET(req: NextRequest) {
       Payment.find().lean(),
     ]);
 
-    return NextResponse.json({ users, rooms, leaveRequests, payments });
+    // Map _id to id for all entities for frontend consistency
+    const mappedUsers = users.map(user => ({ ...user, id: String(user._id) }));
+    const mappedRooms = rooms.map(room => ({ ...room, id: String(room._id) }));
+    const mappedLeaveRequests = leaveRequests.map(lr => ({ ...lr, id: String(lr._id) }));
+    const mappedPayments = payments.map(payment => ({ ...payment, id: String(payment._id) }));
+
+    return NextResponse.json({ users: mappedUsers, rooms: mappedRooms, leaveRequests: mappedLeaveRequests, payments: mappedPayments });
   } catch (error) {
     console.error("Error fetching admin data:", error);
     return NextResponse.json(

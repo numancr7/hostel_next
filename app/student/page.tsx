@@ -29,6 +29,7 @@ export default function StudentPage() {
         const data = await response.json();
         setDashboardData(data);
       } catch (err: any) {
+        console.error("Error fetching student dashboard data after action:", err);
         setError(err.message);
       } finally {
         setLoading(false);

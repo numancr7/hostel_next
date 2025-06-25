@@ -18,6 +18,9 @@ const SignupSchema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["admin", "student"]),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  roomId: z.string().optional(),
 });
 
 type SignupForm = z.infer<typeof SignupSchema>;
@@ -28,9 +31,13 @@ export default function Signup() {
     email: "",
     password: "",
     role: "student",
+    phone: "",
+    address: "",
+    roomId: "",
   });
   const [errors, setErrors] = useState<Partial<Record<keyof SignupForm, string>>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [showVerificationMessage, setShowVerificationMessage] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -57,33 +64,42 @@ export default function Signup() {
       body: JSON.stringify(form),
     });
     const data = await res.json();
+    setIsLoading(false);
+
     if (res.ok) {
-      // Attempt to log in directly after successful registration
-      const loginRes = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, password: form.password }),
-      });
-      const loginData = await loginRes.json();
-      setIsLoading(false);
-      if (loginRes.ok) {
-        toast({
-          title: "Account created",
-          description: "Your account has been created successfully!",
-        });
-        router.push('/login');
-      } else {
-        toast({
-          title: "Signup successful, but login failed",
-          description: loginData.error || "Could not log in after signup",
-          variant: "destructive",
-        });
-      }
-    } else {
-      setIsLoading(false);
+      setShowVerificationMessage(true);
       toast({
-        title: "Signup failed",
-        description: data?.error || "Email already exists",
+        title: "Registration Successful",
+        description: "A verification email has been sent to your inbox. Please verify your email to log in.",
+      });
+    } else {
+      toast({
+        title: "Signup Failed",
+        description: data?.error || "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setIsLoading(true);
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: form.email }), // Only email is needed to resend
+    });
+    const data = await res.json();
+    setIsLoading(false);
+
+    if (res.ok) {
+      toast({
+        title: "Verification Email Resent",
+        description: "Another verification email has been sent. Please check your inbox.",
+      });
+    } else {
+      toast({
+        title: "Failed to Resend Email",
+        description: data?.error || "Could not resend verification email. Please try again later.",
         variant: "destructive",
       });
     }
@@ -99,64 +115,122 @@ export default function Signup() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                type="text"
-                value={form.name}
-                onChange={(e) => handleChange("name", e.target.value)}
-                required
-                placeholder="Enter your full name"
-              />
-              {errors.name && <div className="text-red-500 text-xs">{errors.name}</div>}
+          {!showVerificationMessage ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => handleChange("name", e.target.value)}
+                  required
+                  placeholder="Enter your full name"
+                />
+                {errors.name && <div className="text-red-500 text-xs">{errors.name}</div>}
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  required
+                  placeholder="Enter your email"
+                />
+                {errors.email && <div className="text-red-500 text-xs">{errors.email}</div>}
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => handleChange("password", e.target.value)}
+                  required
+                  placeholder="Enter your password"
+                />
+                {errors.password && <div className="text-red-500 text-xs">{errors.password}</div>}
+              </div>
+              {form.role === "student" && (
+                <>
+                  <div>
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      type="text"
+                      value={form.phone}
+                      onChange={(e) => handleChange("phone", e.target.value)}
+                      placeholder="Enter your phone number"
+                    />
+                    {errors.phone && <div className="text-red-500 text-xs">{errors.phone}</div>}
+                  </div>
+                  <div>
+                    <Label htmlFor="address">Address</Label>
+                    <Input
+                      id="address"
+                      type="text"
+                      value={form.address}
+                      onChange={(e) => handleChange("address", e.target.value)}
+                      placeholder="Enter your address"
+                    />
+                    {errors.address && <div className="text-red-500 text-xs">{errors.address}</div>}
+                  </div>
+                  <div>
+                    <Label htmlFor="roomId">Room ID</Label>
+                    <Input
+                      id="roomId"
+                      type="text"
+                      value={form.roomId}
+                      onChange={(e) => handleChange("roomId", e.target.value)}
+                      placeholder="Enter your room ID (optional)"
+                    />
+                    {errors.roomId && <div className="text-red-500 text-xs">{errors.roomId}</div>}
+                  </div>
+                </>
+              )}
+              <div>
+                <Label htmlFor="role">Role</Label>
+                <Select value={form.role} onValueChange={(value: 'admin' | 'student') => handleChange("role", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="student">Student</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.role && <div className="text-red-500 text-xs">{errors.role}</div>}
+              </div>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Creating account...' : 'Create account'}
+              </Button>
+            </form>
+          ) : (
+            <div className="text-center space-y-4">
+              <p className="text-lg font-medium">Thank you for registering!</p>
+              <p>A verification email has been sent to <span className="font-semibold">{form.email}</span>. Please click the link in the email to activate your account.</p>
+              <Button
+                onClick={handleResendVerification}
+                disabled={isLoading}
+                className="w-full"
+              >
+                {isLoading ? 'Resending...' : 'Resend Verification Email'}
+              </Button>
+              <Button
+                variant="link"
+                onClick={() => router.push('/login')}
+                className="w-full"
+              >
+                Go to Login
+              </Button>
             </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => handleChange("email", e.target.value)}
-                required
-                placeholder="Enter your email"
-              />
-              {errors.email && <div className="text-red-500 text-xs">{errors.email}</div>}
-            </div>
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={form.password}
-                onChange={(e) => handleChange("password", e.target.value)}
-                required
-                placeholder="Enter your password"
-              />
-              {errors.password && <div className="text-red-500 text-xs">{errors.password}</div>}
-            </div>
-            <div>
-              <Label htmlFor="role">Role</Label>
-              <Select value={form.role} onValueChange={(value: 'admin' | 'student') => handleChange("role", value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="student">Student</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.role && <div className="text-red-500 text-xs">{errors.role}</div>}
-            </div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Creating account...' : 'Create account'}
-            </Button>
-          </form>
+          )}
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600">
               Already have an account?{' '}

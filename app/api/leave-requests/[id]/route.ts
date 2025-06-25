@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import type { LeaveRequest as LeaveRequestType } from '@/types';
 import { z } from "zod";
+import { handleApiError } from '@/lib/utils';
 
 // Zod schema for updating a leave request
 const updateLeaveRequestSchema = z.object({
@@ -37,7 +38,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
     return NextResponse.json(leaveRequest, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch leave request' }, { status: 500 });
+    const { status, body } = handleApiError(error, 'Fetch Leave Request');
+    return NextResponse.json(body, { status });
   }
 }
 
@@ -59,7 +61,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: validationResult.error.errors[0].message },
+        { errors: validationResult.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
@@ -74,7 +76,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (!leaveRequest) return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
     return NextResponse.json(leaveRequest, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to update leave request' }, { status: 500 });
+    const { status, body } = handleApiError(error, 'Update Leave Request');
+    return NextResponse.json(body, { status });
   }
 }
 
@@ -94,6 +97,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     await LeaveRequest.findByIdAndDelete(params.id);
     return NextResponse.json({ message: 'Leave request deleted' }, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete leave request' }, { status: 500 });
+    const { status, body } = handleApiError(error, 'Delete Leave Request');
+    return NextResponse.json(body, { status });
   }
 } 

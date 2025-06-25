@@ -1,5 +1,3 @@
-
-
 export interface User {
   id?: string;
   email: string;
@@ -23,8 +21,11 @@ export interface Room {
 
 export interface LeaveRequest {
   id: string;
-  studentId: string;
-  studentName: string;
+  studentId: string | {
+    _id: string;
+    name: string;
+    email: string;
+  }; // studentId can be a string or a populated User object
   fromDate: string;
   toDate: string;
   reason: string;
@@ -36,9 +37,9 @@ export interface LeaveRequest {
 export interface Payment {
   id: string;
   studentId: string;
-  studentName: string;
   amount: number;
-  type: 'room_rent' | 'mess_fee' | 'other';
+  month: string;
+  year: number;
   dueDate: string;
   paidDate?: string;
   status: 'pending' | 'paid' | 'overdue';

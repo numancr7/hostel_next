@@ -7,17 +7,29 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, UserPlus, Home } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { useSession } from 'next-auth/react';
+import { Pencil, Trash2 } from 'lucide-react';
 
 // StudentList now receives users and rooms as props from the parent
-export const StudentList: React.FC<{ users: any[]; rooms: any[] }> = ({
+export const StudentList: React.FC<{ users: any[]; rooms: any[]; refreshData: () => void }> = ({
   users,
   rooms,
+  refreshData,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [localRooms, setLocalRooms] = useState(rooms); // Initialize with props
+  const [isAddEditStudentDialogOpen, setIsAddEditStudentDialogOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<any | null>(null);
   const router = useRouter();
+  const { data: session } = useSession();
+  const { toast } = useToast();
 
   useEffect(() => {
     setLocalRooms(rooms);
@@ -90,6 +102,49 @@ export const StudentList: React.FC<{ users: any[]; rooms: any[] }> = ({
     }
   };
 
+  const handleDeleteStudent = async (studentId: string) => {
+    if (session?.user?.role !== 'admin') {
+      toast({
+        title: "Unauthorized",
+        description: "You do not have permission to perform this action.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this student?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin-data/students/${studentId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        toast({
+          title: "Student Deleted",
+          description: "Student record deleted successfully.",
+        });
+        refreshData();
+      } else {
+        const data = await res.json();
+        toast({
+          title: "Deletion Failed",
+          description: data.error || data.message || 'An error occurred during deletion.',
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting student:", error);
+      toast({
+        title: "Error",
+        description: "Network error or server issue.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStudentRoom = (studentId: string) => {
     return localRooms.find((room: any) => room.occupants.includes(studentId));
   };
@@ -102,6 +157,17 @@ export const StudentList: React.FC<{ users: any[]; rooms: any[] }> = ({
         <div>
           <h2 className="text-2xl font-bold">Student Management</h2>
           <p className="text-muted-foreground">Manage student records and room assignments</p>
+        </div>
+        <div>
+          <Button
+            onClick={() => {
+              setEditingStudent(null);
+              setIsAddEditStudentDialogOpen(true);
+            }}
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add Student
+          </Button>
         </div>
       </div>
       <div className="flex items-center space-x-4">
@@ -161,6 +227,25 @@ export const StudentList: React.FC<{ users: any[]; rooms: any[] }> = ({
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex justify-end space-x-2 mt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingStudent(student);
+                        setIsAddEditStudentDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteStudent(student.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -176,6 +261,235 @@ export const StudentList: React.FC<{ users: any[]; rooms: any[] }> = ({
           </p>
         </div>
       )}
+
+      <Dialog open={isAddEditStudentDialogOpen} onOpenChange={setIsAddEditStudentDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingStudent ? 'Edit Student' : 'Add Student'}</DialogTitle>
+            <DialogDescription>
+              {editingStudent ? 'Edit the student\'s details.' : 'Add a new student to the system.'}
+            </DialogDescription>
+          </DialogHeader>
+          <AddEditStudentForm
+            student={editingStudent}
+            onSuccess={() => {
+              setIsAddEditStudentDialogOpen(false);
+              setEditingStudent(null);
+              refreshData();
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+};
+
+interface AddEditStudentFormProps {
+  student?: any;
+  onSuccess: () => void;
+}
+
+const AddEditStudentForm: React.FC<AddEditStudentFormProps> = ({ student, onSuccess }) => {
+  const { toast } = useToast();
+  const { data: session } = useSession();
+
+  const formSchema = z.object({
+    name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+    email: z.string().email({ message: "Invalid email address." }),
+    password: student ? z.string().optional() : z.string().min(6, { message: "Password must be at least 6 characters." }),
+    role: z.enum(["student", "admin"]), // Admins can add other admins if needed
+    phone: z.string().optional().or(z.literal("")),
+    address: z.string().optional().or(z.literal("")),
+    roomId: z.string().optional().or(z.literal("")), // Optional for initial creation, can be assigned later
+  });
+
+  type AddEditStudentFormType = z.infer<typeof formSchema>;
+
+  const form = useForm<AddEditStudentFormType>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: student?.name || "",
+      email: student?.email || "",
+      password: "", // Never pre-fill passwords
+      role: student?.role || "student",
+      phone: student?.phone || "",
+      address: student?.address || "",
+      roomId: student?.roomId || "",
+    },
+  });
+
+  const onSubmit = async (values: AddEditStudentFormType) => {
+    if (session?.user?.role !== 'admin') {
+      toast({
+        title: "Unauthorized",
+        description: "You do not have permission to perform this action.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      let res;
+
+      // Prepare data for submission, handling optional/nullable fields
+      const submissionValues: Record<string, any> = { ...values };
+      if (submissionValues.roomId === "") {
+        submissionValues.roomId = null; // Convert empty string to null for optional roomId
+      }
+      if (student && submissionValues.password === "") {
+        delete submissionValues.password; // Do not send empty password for updates
+      }
+
+      if (student) {
+        // Update existing student
+        res = await fetch(`/api/admin-data/students/${student.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(submissionValues),
+        });
+      } else {
+        // Create new student
+        res = await fetch('/api/admin-data/students', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(submissionValues),
+        });
+      }
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast({
+          title: student ? 'Student Updated' : 'Student Added',
+          description: data.message || (student ? 'Student details updated successfully.' : 'New student added successfully.'),
+        });
+        onSuccess();
+      } else {
+        toast({
+          title: student ? 'Update Failed' : 'Add Student Failed',
+          description: data.error || data.message || 'An error occurred.',
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error saving student:", error);
+      toast({
+        title: "Error",
+        description: "Network error or server issue.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Full Name</FormLabel>
+              <FormControl>
+                <Input placeholder="Student's full name" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input type="email" placeholder="student@example.com" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        {!student && (
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder="********" {...field} />
+                </FormControl>
+                <FormDescription>Password is required for new students.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+        <FormField
+          control={form.control}
+          name="role"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Role</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="student">Student</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="phone"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Phone Number</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., +1234567890" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="address"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Address</FormLabel>
+              <FormControl>
+                <Input placeholder="Student's address" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="roomId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Room ID</FormLabel>
+              <FormControl>
+                <Input placeholder="Room ID (optional)" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button type="submit" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? 'Saving...' : 'Save Changes'}
+        </Button>
+      </form>
+    </Form>
   );
 };

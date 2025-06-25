@@ -3,6 +3,8 @@ import User from "@/models/User";
 import { NextRequest, NextResponse } from "next/server";
 import { handleApiError } from "@/lib/utils";
 import { z } from "zod";
+import crypto from 'crypto';
+import { sendEmail } from '@/lib/mailer';
 
 // Zod schema for user registration
 const registerSchema = z.object({
@@ -10,6 +12,9 @@ const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["student", "admin"], "Invalid role"),
+  phone: z.string().optional().or(z.literal("")),
+  address: z.string().optional().or(z.literal("")),
+  roomId: z.string().optional().or(z.literal("")),
 });
 
 export async function POST(req: NextRequest) {
@@ -27,21 +32,70 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, email, password, role } = validationResult.data;
+    const { name, email, password, role, phone, address, roomId } = validationResult.data;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return NextResponse.json({ error: 'User with this email already exists' }, { status: 409 });
+      // If user exists but is not verified, resend verification email
+      if (!existingUser.emailVerified) {
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const verificationTokenExpiry = new Date(Date.now() + 3600000); // 1 hour expiry
+
+        existingUser.verificationToken = verificationToken;
+        existingUser.verificationTokenExpiry = verificationTokenExpiry;
+        await existingUser.save();
+
+        const verificationLink = `${process.env.NEXTAUTH_URL}/api/auth/verify-email?token=${verificationToken}`;
+        const emailHtml = `
+          <h1>Welcome to HostelMS!</h1>
+          <p>Please verify your email address by clicking the link below:</p>
+          <p><a href="${verificationLink}">Verify Email</a></p>
+          <p>This link will expire in 1 hour.</p>
+        `;
+
+        await sendEmail({
+          to: email,
+          subject: 'Verify Your Email Address',
+          html: emailHtml,
+        });
+        return NextResponse.json({ message: 'User already exists but not verified. Verification email re-sent.' }, { status: 200 });
+      }
+      return NextResponse.json({ error: 'User with this email already exists and is verified.' }, { status: 409 });
     }
 
-    // Remove explicit hashing here, let the Mongoose pre-save hook handle it
-    const newUser = await User.create({ name, email, password, role });
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpiry = new Date(Date.now() + 3600000); // 1 hour expiry
 
-    // Do not return password to frontend
+    const newUser = await User.create({
+      name,
+      email,
+      password,
+      role,
+      phone,
+      address,
+      roomId,
+      verificationToken,
+      verificationTokenExpiry,
+    });
+
+    const verificationLink = `${process.env.NEXTAUTH_URL}/api/auth/verify-email?token=${verificationToken}`;
+    const emailHtml = `
+      <h1>Welcome to HostelMS!</h1>
+      <p>Thank you for registering. Please verify your email address by clicking the link below:</p>
+      <p><a href="${verificationLink}">Verify Email</a></p>
+      <p>This link will expire in 1 hour.</p>
+    `;
+
+    await sendEmail({
+      to: newUser.email,
+      subject: 'Verify Your Email Address',
+      html: emailHtml,
+    });
+
     const userWithoutPassword = newUser.toObject();
     delete userWithoutPassword.password;
 
-    return NextResponse.json(userWithoutPassword, { status: 201 });
+    return NextResponse.json(userWithoutPassword, { status: 201, message: "User registered successfully. Verification email sent." });
   } catch (error) {
     const { status, body } = handleApiError(error, 'User Registration');
     return NextResponse.json(body, { status });

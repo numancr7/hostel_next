@@ -12,31 +12,36 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchAdminData = async () => {
+    if (status === "loading") return;
+
+    if (!session?.user || session.user.role !== "admin") {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin-data");
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      }
+      const data = await response.json();
+      setDashboardData(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchAdminData = async () => {
-      if (status === "loading") return;
-
-      if (!session?.user || session.user.role !== "admin") {
-        router.push("/login");
-        return;
-      }
-
-      try {
-        const response = await fetch("/api/admin-data");
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
-        }
-        const data = await response.json();
-        setDashboardData(data);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchAdminData();
   }, [session, status, router]);
+
+  const refreshAdminData = () => {
+    setLoading(true); // Show loading state while refreshing
+    fetchAdminData();
+  };
 
   if (loading) {
     return <p>Loading admin dashboard...</p>;
@@ -56,6 +61,7 @@ export default function AdminPage() {
       rooms={dashboardData.rooms}
       leaveRequests={dashboardData.leaveRequests}
       payments={dashboardData.payments}
+      refreshData={refreshAdminData}
     />
   );
 }

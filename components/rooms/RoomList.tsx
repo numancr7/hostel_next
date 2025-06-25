@@ -3,18 +3,20 @@ import { Room, User } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Home, Users, Plus, Trash2 } from 'lucide-react';
+import { Home, Users, Plus, Trash2, Pencil } from 'lucide-react';
 import { AddRoomDialog } from './AddRoomDialog';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
 // RoomList now receives rooms and users as props from the parent
-export const RoomList: React.FC<{ rooms: Room[]; users: User[] }> = ({
+export const RoomList: React.FC<{ rooms: Room[]; users: User[]; refreshData: () => void }> = ({
   rooms,
   users,
+  refreshData,
 }) => {
   const [isAddRoomDialogOpen, setIsAddRoomDialogOpen] = useState(false);
   const [localRooms, setLocalRooms] = useState(rooms);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export const RoomList: React.FC<{ rooms: Room[]; users: User[] }> = ({
           title: "Room deleted",
           description: "The room has been successfully deleted.",
         });
-        router.refresh(); // Refresh data after successful deletion
+        refreshData();
       } else {
         const errorData = await res.json();
         toast({
@@ -73,7 +75,7 @@ export const RoomList: React.FC<{ rooms: Room[]; users: User[] }> = ({
   };
 
   const handleRoomAdded = () => {
-    router.refresh(); // Refresh data after successful addition
+    refreshData();
   };
 
   return (
@@ -167,7 +169,17 @@ export const RoomList: React.FC<{ rooms: Room[]; users: User[] }> = ({
                     </div>
                   </div>
                 )}
-                <div className="flex justify-end">
+                <div className="flex justify-end space-x-2 mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEditingRoom(room);
+                      setIsAddRoomDialogOpen(true);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   <Button variant="destructive" size="sm" onClick={() => handleDeleteRoom(room.id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -186,8 +198,12 @@ export const RoomList: React.FC<{ rooms: Room[]; users: User[] }> = ({
       )}
       <AddRoomDialog
         open={isAddRoomDialogOpen}
-        onOpenChange={setIsAddRoomDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) setEditingRoom(null);
+          setIsAddRoomDialogOpen(open);
+        }}
         onRoomAdded={handleRoomAdded}
+        editingRoom={editingRoom && editingRoom.id ? editingRoom : null}
       />
     </div>
   );

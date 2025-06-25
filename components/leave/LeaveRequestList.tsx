@@ -1,31 +1,112 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LeaveRequest } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, X, Clock } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { Check, X, Clock, Trash2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useSession } from 'next-auth/react';
 
-// LeaveRequestList now receives leaveRequests as a prop from the parent
-export const LeaveRequestList: React.FC<{ leaveRequests: LeaveRequest[] }> = ({ leaveRequests }) => {
+// LeaveRequestList now receives leaveRequests and refreshData as props
+export const LeaveRequestList: React.FC<{ leaveRequests: LeaveRequest[]; refreshData: () => void }> = ({
+  leaveRequests,
+  refreshData,
+}) => {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
-
-  // All update logic is now local (for UI only)
   const [localLeaveRequests, setLocalLeaveRequests] = useState(leaveRequests);
+  const { data: session } = useSession();
+  const { toast } = useToast();
 
-  const updateRequestStatus = (requestId: string, status: 'approved' | 'rejected') => {
-    const updatedRequests = localLeaveRequests.map(request =>
-      request.id === requestId
-        ? { ...request, status, reviewedAt: new Date().toISOString() }
-        : request
-    );
-    setLocalLeaveRequests(updatedRequests);
-    toast({
-      title: `Request ${status}`,
-      description: `Leave request has been ${status}`,
-    });
+  useEffect(() => {
+    setLocalLeaveRequests(leaveRequests);
+  }, [leaveRequests]);
+
+  const updateRequestStatus = async (requestId: string, status: 'approved' | 'rejected') => {
+    if (session?.user?.role !== 'admin') {
+      toast({
+        title: "Unauthorized",
+        description: "You do not have permission to perform this action.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/leave-requests/${requestId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast({
+          title: `Request ${status}`,
+          description: data.message || `Leave request has been ${status}.`,
+        });
+        refreshData();
+      } else {
+        toast({
+          title: "Update Failed",
+          description: data.error || data.message || 'An error occurred while updating the request.',
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to update leave request:", error);
+      toast({
+        title: "Error",
+        description: "Network error or server issue.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteRequest = async (requestId: string) => {
+    if (!confirm('Are you sure you want to delete this leave request?')) {
+      return;
+    }
+
+    if (session?.user?.role !== 'admin') {
+      toast({
+        title: "Unauthorized",
+        description: "You do not have permission to perform this action.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/leave-requests/${requestId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast({
+          title: "Request Deleted",
+          description: data.message || 'Leave request deleted successfully.',
+        });
+        refreshData();
+      } else {
+        toast({
+          title: "Delete Failed",
+          description: data.error || data.message || 'An error occurred while deleting the request.',
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting leave request:", error);
+      toast({
+        title: "Error",
+        description: "Network error or server issue.",
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredRequests = localLeaveRequests.filter(request => {
@@ -102,7 +183,7 @@ export const LeaveRequestList: React.FC<{ leaveRequests: LeaveRequest[] }> = ({ 
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
-                  <CardTitle className="text-lg">{request.studentName}</CardTitle>
+                  <CardTitle className="text-lg">{typeof request.studentId === 'object' && request.studentId !== null ? request.studentId.name : 'N/A'}</CardTitle>
                   <CardDescription>
                     {new Date(request.fromDate).toLocaleDateString()} - {new Date(request.toDate).toLocaleDateString()}
                   </CardDescription>
@@ -130,7 +211,7 @@ export const LeaveRequestList: React.FC<{ leaveRequests: LeaveRequest[] }> = ({ 
                     <span>Reviewed: {new Date(request.reviewedAt).toLocaleString()}</span>
                   )}
                 </div>
-                {request.status === 'pending' && (
+                {session?.user?.role === 'admin' && request.status === 'pending' && (
                   <div className="flex space-x-2 pt-2">
                     <Button
                       size="sm"
@@ -147,6 +228,18 @@ export const LeaveRequestList: React.FC<{ leaveRequests: LeaveRequest[] }> = ({ 
                     >
                       <X className="h-4 w-4 mr-1" />
                       Reject
+                    </Button>
+                  </div>
+                )}
+                {session?.user?.role === 'admin' && (
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleDeleteRequest(request.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
                     </Button>
                   </div>
                 )}

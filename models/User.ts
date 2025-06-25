@@ -10,6 +10,10 @@ export interface IUser {
   roomId?: string;
   phone?: string;
   address?: string;
+  verificationToken?: string | null;
+  verificationTokenExpiry?: Date | null;
+  resetPasswordToken?: string | null;
+  resetPasswordTokenExpiry?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -28,6 +32,10 @@ const userSchema = new Schema<IUser>(
     roomId: { type: String, default: null },
     phone: { type: String, default: null },
     address: { type: String, default: null },
+    verificationToken: { type: String, default: null },
+    verificationTokenExpiry: { type: Date, default: null },
+    resetPasswordToken: { type: String, default: null },
+    resetPasswordTokenExpiry: { type: Date, default: null },
   },
   { timestamps: true }
 );
