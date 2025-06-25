@@ -8,7 +8,8 @@ import mongoose from 'mongoose';
 
 // Zod schema for updating a room
 const updateRoomSchema = z.object({
-  type: z.enum(['AC', 'Non-AC'], "Invalid room type").optional(),
+  roomNumber: z.string().min(1, "Room number is required").optional(),
+  type: z.enum(['AC', 'Non-AC']).optional(),
   capacity: z.number().int().positive("Capacity must be a positive integer").optional(),
   isAvailable: z.boolean().optional(),
   occupants: z.array(z.string()).optional(), // Assuming occupants are string IDs

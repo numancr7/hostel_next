@@ -9,7 +9,7 @@ import { handleApiError } from '@/lib/utils';
 
 // Zod schema for updating a leave request
 const updateLeaveRequestSchema = z.object({
-  status: z.enum(["approved", "rejected", "pending"], "Invalid status").optional(),
+  status: z.enum(["approved", "rejected", "pending"]).optional(),
   reason: z.string().min(10, "Reason must be at least 10 characters long").optional(),
   fromDate: z.string().datetime("Invalid 'fromDate' format").optional(),
   toDate: z.string().datetime("Invalid 'toDate' format").optional(),
@@ -66,10 +66,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       );
     }
 
-    const updateFields = validationResult.data;
+    const { status, reason, fromDate, toDate } = validationResult.data;
+
+    // Build update object based on validated data
+    const updateFields: any = {};
+    if (status) updateFields.status = status;
+    if (reason) updateFields.reason = reason;
+    if (fromDate) updateFields.fromDate = fromDate;
+    if (toDate) updateFields.toDate = toDate;
 
     if (updateFields.status) {
-      updateFields.reviewedAt = new Date().toISOString();
+      updateFields.reviewedAt = new Date();
     }
 
     const leaveRequest = await LeaveRequest.findByIdAndUpdate(params.id, updateFields, { new: true });

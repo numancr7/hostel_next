@@ -8,6 +8,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import React, { Suspense } from 'react';
 
 
 
@@ -28,7 +29,9 @@ export default function RootLayout({
             <Sonner />
               <div className="min-h-screen bg-gray-50">
                 <Navbar />
-                {children}
+                <Suspense fallback={<div>Loading...</div>}>
+                  {children}
+                </Suspense>
                 <Footer />
               </div>
           </TooltipProvider>

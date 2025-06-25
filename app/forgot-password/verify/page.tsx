@@ -18,7 +18,7 @@ export default function ForgotPasswordVerifyPage() {
         </CardHeader>
         <CardContent className="text-center space-y-4">
           <p className="text-sm text-gray-600">
-            Didn't receive the email? Please make sure you entered the correct email address and check your spam folder.
+            Didn&apos;t receive the email? Please make sure you entered the correct email address and check your spam folder.
           </p>
           <Button asChild>
             <Link href="/login">Back to Login</Link>

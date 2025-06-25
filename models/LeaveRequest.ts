@@ -6,6 +6,7 @@ export interface ILeaveRequest {
   toDate: Date;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
+  reviewedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -16,6 +17,7 @@ const leaveRequestSchema = new Schema<ILeaveRequest>({
   toDate: { type: Date, required: true },
   reason: { type: String, required: true },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  reviewedAt: { type: Date, required: false },
 }, { timestamps: true });
 
 const LeaveRequest = models?.LeaveRequest || model<ILeaveRequest>('LeaveRequest', leaveRequestSchema);

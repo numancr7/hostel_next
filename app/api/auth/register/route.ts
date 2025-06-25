@@ -11,7 +11,7 @@ const registerSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  role: z.enum(["student", "admin"], "Invalid role"),
+  role: z.enum(["student", "admin"]),
   phone: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
   roomId: z.string().optional().or(z.literal("")),
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     const userWithoutPassword = newUser.toObject();
     delete userWithoutPassword.password;
 
-    return NextResponse.json(userWithoutPassword, { status: 201, message: "User registered successfully. Verification email sent." });
+    return NextResponse.json({ ...userWithoutPassword, message: "User registered successfully. Verification email sent." }, { status: 201 });
   } catch (error) {
     const { status, body } = handleApiError(error, 'User Registration');
     return NextResponse.json(body, { status });

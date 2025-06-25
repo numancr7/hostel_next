@@ -8,7 +8,7 @@ import { z } from "zod";
 // Zod schema for creating a new room
 const roomSchema = z.object({
   roomNumber: z.string().min(1, "Room number is required"),
-  type: z.enum(['AC', 'Non-AC'], "Invalid room type"),
+  type: z.enum(['AC', 'Non-AC']),
   capacity: z.number().int().positive("Capacity must be a positive integer"),
   isAvailable: z.boolean().default(true).optional(),
   occupants: z.array(z.string()).default([]).optional(), // Assuming occupants are string IDs

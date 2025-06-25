@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AdminDashboard from "@/components/admin/AdminDashboard";
@@ -12,7 +12,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAdminData = async () => {
+  const fetchAdminData = useCallback(async () => {
     if (status === "loading") return;
 
     if (!session?.user || session.user.role !== "admin") {
@@ -32,11 +32,11 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session, status, router]);
 
   useEffect(() => {
     fetchAdminData();
-  }, [session, status, router]);
+  }, [fetchAdminData]);
 
   const refreshAdminData = () => {
     setLoading(true); // Show loading state while refreshing
