@@ -80,9 +80,9 @@ export const AddRoomDialog: React.FC<AddRoomDialogProps> = ({ open, onOpenChange
         onOpenChange(false); // Close dialog
         // Reset form for next use (if not editing)
         if (!editingRoom) {
-          setRoomNumber('');
-          setCapacity('2');
-          setType('Non-AC');
+        setRoomNumber('');
+        setCapacity('2');
+        setType('Non-AC');
         }
       } else {
         const errorData = await res.json();

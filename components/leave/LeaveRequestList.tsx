@@ -43,10 +43,10 @@ export const LeaveRequestList: React.FC<{ leaveRequests: LeaveRequest[]; refresh
       const data = await res.json();
 
       if (res.ok) {
-        toast({
-          title: `Request ${status}`,
+    toast({
+      title: `Request ${status}`,
           description: data.message || `Leave request has been ${status}.`,
-        });
+    });
         refreshData();
       } else {
         toast({

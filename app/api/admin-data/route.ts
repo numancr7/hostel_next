@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const [users, rooms, leaveRequests, payments] = await Promise.all([
       User.find().lean(),
       Room.find().lean(),
-      LeaveRequest.find().lean(),
+      LeaveRequest.find().populate('studentId', 'name email').lean(),
       Payment.find().lean(),
     ]);
 

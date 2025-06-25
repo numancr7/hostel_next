@@ -36,16 +36,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 
   try {
-    const payment = await Payment.findById(params.id).populate('studentId');
+  const payment = await Payment.findById(params.id).populate('studentId');
     // Check if payment exists
-    if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
+  if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
 
     // Authorize: Student can only view their own payment
     if (session.user.role === 'student' && payment.studentId.toString() !== session.user.id) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    return NextResponse.json(payment);
+  return NextResponse.json(payment);
   } catch (error) {
     // Centralized error handling for API errors
     const { status, body } = handleApiError(error, 'Fetch Payment');
@@ -105,9 +105,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   await connectToDatabase();
   try {
     // Find and delete the payment record from the database
-    const payment = await Payment.findByIdAndDelete(params.id);
-    if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
-    return NextResponse.json({ message: 'Payment deleted' });
+  const payment = await Payment.findByIdAndDelete(params.id);
+  if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
+  return NextResponse.json({ message: 'Payment deleted' });
   } catch (error) {
     // Centralized error handling for API errors
     const { status, body } = handleApiError(error, 'Delete Payment');
