@@ -13,6 +13,7 @@ export default withAuth(
         // Check if the user is authenticated.
         const {pathname} = req.nextUrl;
          if (
+          pathname === "/" || // Allow root path
           pathname.startsWith("/api/auth") ||
           pathname === "/login" ||
           pathname === "/signup"
@@ -31,11 +32,12 @@ export const config = {
     /*
      *
      * Match all request paths except:
+     * - / (the root path)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
      */
-    "/((?!_next/static|_next/image|favicon.ico|public/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|public/|/).*)",
   ],
 };
